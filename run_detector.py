@@ -86,13 +86,17 @@ if __name__ == '__main__':
 
     # Train the DeepBall ball detector model
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', help='model name', type=str, default='fb1')
-    parser.add_argument('--weights', help='path to model weights', type=str,
-                        default="models/model_20201019_1416_final.pth")
+    parser.add_argument('--model', help='model name', type=str, default='bohsnet')
     parser.add_argument('--ball_threshold', help='ball confidence detection threshold', type=float, default=0.7)
     parser.add_argument('--player_threshold', help='player confidence detection threshold', type=float, default=0.7)
     parser.add_argument('--device', help='device (CPU or CUDA)', type=str, default='cuda:0')
     args = parser.parse_args()
+
+    if args.model == 'fb1':
+        args.weights = "models/model_20201019_1416_final.pth"
+    elif args.model == 'bohsnet':
+        args.weights = "models/bohsnet_model_12_06_2022_2349_final_with_augs.pth"
+
 
     print(f'Model: {args.model}')
     print(f'Model weights path: {args.weights}')
