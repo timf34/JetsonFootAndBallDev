@@ -16,7 +16,7 @@ import tqdm
 import network.footandball as footandball
 import data.augmentation as augmentations
 from data.augmentation import PLAYER_LABEL, BALL_LABEL
-from fps import FPS 
+from fps import FPS
 
 
 def draw_bboxes(image, detections):
@@ -26,7 +26,7 @@ def draw_bboxes(image, detections):
             x1, y1, x2, y2 = box
             color = (255, 0, 255)
             cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
-            cv2.putText(image, '{:0.2f}'.format(score), (int(x1), max(0, int(y1)-10)), font, 1, color, 2)
+            cv2.putText(image, '{:0.2f}'.format(score), (int(x1), max(0, int(y1) - 10)), font, 1, color, 2)
 
         elif label == BALL_LABEL:
             x1, y1, x2, y2 = box
@@ -48,8 +48,6 @@ def run_detector(model, args):
     # Initialize FPS tracker
     fps_tracker = FPS()
 
-    _, file_name = os.path.split(args.path)
-
     if args.device == 'cpu':
         print('Loading CPU weights...')
         state_dict = torch.load(args.weights, map_location=lambda storage, loc: storage)
@@ -61,47 +59,26 @@ def run_detector(model, args):
     # Set model to evaluation mode
     model.eval()
 
-    sequence = cv2.VideoCapture(args.path)
-    fps = sequence.get(cv2.CAP_PROP_FPS)
-    (frame_width, frame_height) = (int(sequence.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                                   int(sequence.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-    n_frames = int(sequence.get(cv2.CAP_PROP_FRAME_COUNT))
-    # out_sequence = cv2.VideoWriter(args.out_video, cv2.VideoWriter_fourcc(*'XVID'), fps,
-    #                                (frame_width, frame_height))
-
-    print('Processing video: {}'.format(args.path))
-    pbar = tqdm.tqdm(total=n_frames)
-
-    fps_tracker.start()
+    # Load image "images/0.jpg"
+    img = cv2.imread("images/0.jpg")
+    img_tensor = augmentations.numpy2tensor(img)
+    img_tensor = img_tensor.unsqueeze(dim=0).to(args.device)
 
     count = 0
 
-    while sequence.isOpened():
-        ret, frame = sequence.read()
-        if not ret:
-            # End of video
-            break
-
-        # Convert color space from BGR to RGB, convert to tensor and normalize
-        img_tensor = augmentations.numpy2tensor(frame)
-
+    print("Start FPS test")
+    fps_tracker.start()
+    while True:
         with torch.no_grad():
             # Add dimension for the batch size
-            img_tensor = img_tensor.unsqueeze(dim=0).to(args.device)
             detections = model(img_tensor)[0]
 
         fps_tracker.update()
-        if count == 10:
-            fps_tracker.get_fps()
-            
-        # frame = draw_bboxes(frame, detections)
-        # out_sequence.write(frame)
-        pbar.update(1)
-        count+=1
 
-    pbar.close()
-    sequence.release()
-    # out_sequence.release()
+        if count % 10 == 0:
+            print(fps_tracker.get_fps())
+
+        count += 1
 
 
 if __name__ == '__main__':
@@ -109,30 +86,27 @@ if __name__ == '__main__':
 
     # Train the DeepBall ball detector model
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path', help='path to video', type=str, default="images/results5.mp4")
     parser.add_argument('--model', help='model name', type=str, default='fb1')
-    parser.add_argument('--weights', help='path to model weights', type=str, default="models/model_20201019_1416_final.pth")
+    parser.add_argument('--weights', help='path to model weights', type=str,
+                        default="models/model_20201019_1416_final.pth")
     parser.add_argument('--ball_threshold', help='ball confidence detection threshold', type=float, default=0.7)
     parser.add_argument('--player_threshold', help='player confidence detection threshold', type=float, default=0.7)
-    # parser.add_argument('--out_video', help='path to video with detection results', type=str, required=True, default="test_out_vid")
     parser.add_argument('--device', help='device (CPU or CUDA)', type=str, default='cuda:0')
     args = parser.parse_args()
 
-    print('Video path: {}'.format(args.path))
-    print('Model: {}'.format(args.model))
-    print('Model weights path: {}'.format(args.weights))
-    print('Ball confidence detection threshold [0..1]: {}'.format(args.ball_threshold))
-    print('Player confidence detection threshold [0..1]: {}'.format(args.player_threshold))
-    # print('Output video path: {}'.format(args.out_video))
-    print('Device: {}'.format(args.device))
+    print(f'Model: {args.model}')
+    print(f'Model weights path: {args.weights}')
+    print(f'Ball confidence detection threshold: {args.ball_threshold}')
+    print(f'Player confidence detection threshold: {args.player_threshold}')
+    print(f'Device: {args.device}')
 
     print('')
 
-    assert os.path.exists(args.weights), 'Cannot find FootAndBall model weights: {}'.format(args.weights)
-    assert os.path.exists(args.path), 'Cannot open video: {}'.format(args.path)
+    assert os.path.exists(
+        args.weights
+    ), f'Cannot find FootAndBall model weights: {args.weights}'
 
     model = footandball.model_factory(args.model, 'detect', ball_threshold=args.ball_threshold,
                                       player_threshold=args.player_threshold)
 
     run_detector(model, args)
-
